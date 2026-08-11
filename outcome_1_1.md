@@ -154,3 +154,84 @@ Cancer positive rate: 0.3726
 - `predict()` 결과로 ROC-AUC와 AP를 계산하지 마세요.
 - AP는 양성 비율의 영향을 받으므로 positive rate와 함께 해석하세요.
 
+# 심화 1. Recall 정책으로 임계값 선택하기
+
+## ▶ 문제 3-1: fitted 모델과 임계값을 한 쌍으로 고정
+
+### 업무 요청
+
+운영 정책은 **validation Recall 0.90 이상인 후보 중 F1이 가장 높은 임계값**을 요구합니다. 정책을 만족하는 임계값이 없으면 기준을 몰래 낮추지 말고 실패를 보고해야 합니다. 임계값을 선택한 뒤에는 그 확률을 만든 fitted `clf`와 임계값을 함께 고정하여 test를 한 번 평가하세요.
+
+### 수행해야 할 작업
+
+1. 0.05부터 0.95까지 0.01 간격의 임계값 표를 만드세요.
+2. validation Recall 0.90 이상인 행만 남기세요.
+3. F1, Precision, 임계값 순으로 동률을 처리하세요.
+4. 후보가 없으면 `RuntimeError`를 발생시키세요.
+5. fitted `clf`를 재학습하지 않고 test 악성 확률을 계산하세요.
+6. test AP·Precision·Recall·F1을 출력하고 결과를 다시 선택에 사용하지 않는 이유를 설명하세요.
+
+### 시작 코드
+
+```python
+def choose_threshold(y_true, probability, minimum_recall=0.90):
+    """Recall 정책을 만족하는 validation 임계값과 비교표를 반환합니다."""
+    # probability는 validation에서 얻은 값이며 test 확률을 임계값 선택에 사용하면 안 됩니다.
+    # minimum_recall은 완화 가능한 힌트가 아니라 반드시 만족해야 하는 운영 정책입니다.
+    # TODO 1: 임계값별 Precision·Recall·F1을 계산하세요.
+    # TODO 2: 정책 후보가 없으면 명시적으로 실패하세요.
+    raise NotImplementedError("TODO: Recall 정책 임계값을 선택하세요.")
+```
+
+### 제출해야 할 보고 형식
+
+```
+[임계값 정책 보고]
+- 정책: validation Recall >= 0.90
+- 선택 임계값:
+- validation Precision / Recall / F1:
+- test AP / Precision / Recall / F1:
+- 같은 fitted 모델을 유지한 이유:
+- test를 보고 다시 선택하지 않는 이유:
+```
+
+- 💡 힌트 보기
+    - `np.linspace(0.05, 0.95, 91)`은 0.01 간격 후보를 만듭니다.
+    - 정책 후보는 `table[table["recall"] >= minimum_recall]`로 고르세요.
+    - 임계값은 fitted 모델의 확률 척도에 맞춰졌으므로 이 실습에서는 선택 뒤 모델을 다시 학습하지 않습니다.
+
+```bash
+Diabetes split: 265 88 89
+Cancer split: 341 114 114
+Cancer positive rate: 0.3726
+
+================ [문제 3-1: Recall 정책 임계값 선택 및 최종 승인 보고] ================
+
+[모델 평가 승인 보고]
+1. 회귀 후보와 train 평균 기준 모델의 validation 지표:
+          candidate       MAE      RMSE        R2
+  linear_regression 38.221274 49.149692  0.580967
+train_mean_baseline 67.516166 76.161364 -0.006182
+
+2. 분류 validation 지표 여섯 개와 positive class 정의:
+   - Positive Class: 악성 종양 (Malignant = 1)
+   - Validation 지표: {'accuracy': 0.9736842105263158, 'precision': 1.0, 'recall': 0.9302325581395349, 'f1': 0.963855421686747, 'roc_auc': 1.0, 'AP': 1.0}
+
+3. Recall 정책, 선택 임계값, validation 정책 충족 여부:
+   - 운영 정책: Validation Recall >= 0.90
+   - 선택된 임계값: 0.26
+   - Validation 결과 (Recall 충족 여부: 성공): {'precision': 1.0, 'recall': 1.0, 'f1': 1.0}
+
+4. 봉인된 test 결과:
+   - Test 지표: {'AP': 0.9919914842274095, 'precision': 0.975609756097561, 'recall': 0.9523809523809523, 'f1': 0.963855421686747}
+
+5. 데이터 누수와 재선택을 막기 위해 지킨 규칙 두 가지:
+   ① 임계값 선택 시 Test 데이터를 전혀 참조하지 않고 Validation 확률만 사용함.
+   ② 임계값을 확정한 이후, 모델을 재학습하거나 Test 결과를 보고 임계값을 다시 조정하지 않음.
+
+6. 배포 승인 / 보완 실험 필요 및 근거:
+   - [배포 승인]
+   - 근거: Validation 기반 Recall 정책(0.90 이상)을 충족하도록 고정한 임계값(0.26)을 원본 모델 변경 없이 Test 세트에 적용했을 때, Test Recall이 0.9524 및 F1 0.9639로 매우 우수한 일반화 성능을 유지함.
+```
+
+  validation에서는 0.26이 Recall 정책을 만족하면서 F1이 가장 높았습니다. 임계값은 기존 fitted clf의 확률 척도에 맞춰 선택되었으므로 모델을 다시 학습하지 않고 같은 쌍으로 test를 평가합니다. test Recall은 0.9524로 정책 수준을 유지했지만, test 결과를 본 뒤 임계값을 바꾸면 이 test는 더 이상 독립적인 최종 평가가 아닙니다.
