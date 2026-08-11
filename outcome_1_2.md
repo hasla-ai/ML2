@@ -151,3 +151,84 @@ K=3의 Silhouette가 약 0.2849로 후보 중 가장 높습니다. 그러나 PC1
 - 표준화 없이 거리 기반 군집을 만들지 마세요.
 - PCA 산점도가 보기 좋다는 이유만으로 K를 확정하지 마세요.
 
+# 심화 1. 데이터 조건에 따라 후보 모델 추천하기
+
+## ▶ 문제 3-1: 추천 체크리스트와 최종 선택 모델 연결
+
+### 업무 요청
+
+동료가 데이터 조건과 무관하게 항상 같은 세 모델을 추천하는 함수를 작성했습니다. target 유무, 문제 유형, 설명 필요성, 희소 고차원 여부가 실제 후보 목록을 바꾸도록 수정하세요. 마지막에는 문제 1에서 선택한 바로 그 모델 family를 개발 데이터 전체에 학습하고 test를 한 번 평가하세요.
+
+### 수행해야 할 작업
+
+1. target이 없으면 KMeans·PCA와 비지도 검증 방법을 반환하세요.
+2. 분류와 회귀에 서로 다른 기본 후보를 반환하세요.
+3. 설명이 필요하면 선형 모델과 얕은 트리를 앞쪽에 배치하세요.
+4. 희소 고차원 입력이면 선형 계열 후보로 목록을 바꾸세요.
+5. 두 조건이 추천 결과를 실제로 바꾸는지 assertion으로 확인하세요.
+6. 문제 1의 `selected_template`을 train+validation에 다시 학습하고 test AP·F1을 한 번 출력하세요.
+
+### 시작 코드
+
+```python
+def recommend_candidates(
+    has_target,
+    task=None,
+    needs_explanation=False,
+    sparse_high_dimensional=False,
+):
+    """데이터 조건에 맞는 후보 모델과 검증 방법을 반환합니다."""
+    # target 유무와 task가 먼저 후보군을 결정하며 두 boolean 조건도 결과에 실제 영향을 줘야 합니다.
+    # 이 함수는 탐색 시작점을 제안할 뿐 validation 우승 모델을 대신 선택하지 않습니다.
+    # TODO 1: target과 task에 따라 기본 후보를 만드세요.
+    # TODO 2: 설명 필요성과 희소 고차원 조건을 반영하세요.
+    raise NotImplementedError("TODO: 후보 모델 추천 규칙을 완성하세요.")
+```
+
+### 제출해야 할 보고 형식
+
+```
+조건 | 추천 후보 3개 | 검증 방법
+
+[후보 추천 및 최종 평가 보고]
+- 기본 분류 후보:
+- 설명 필요 후보:
+- 희소 고차원 후보:
+- validation 선택 모델:
+- 최종 test AP / F1:
+- 추천 목록은 시작점일 뿐인 이유:
+```
+
+- 💡 힌트 보기
+    - 희소 고차원 분류에는 Logistic Regression·LinearSVC·SGDClassifier 같은 선형 후보를 고려하세요.
+    - `dict.fromkeys(candidates)`는 순서를 유지하면서 중복을 제거할 수 있습니다.
+    - 마지막 test에는 임의의 새 모델이 아니라 `clone(selected_template)`을 사용하세요.
+
+최종 제출 보고 양식(예시)
+[모델 후보 선정 보고]
+1. 세 분류 모델의 validation 비교표와 동률 처리 규칙
+2. 선택 모델과 선택 근거
+3. Wine K별 Silhouette, 선택 K, PCA 설명분산비
+4. 기본·설명 필요·희소 고차원 조건별 후보 목록
+5. 선택 모델 family의 최종 test AP·F1
+6. 다음 실험에서 사용할 CV와 업무 지표
+
+```bash
+================ [Problem 3-1: Model Recommendation Checklist & Sealed Test Evaluation] ================
+Default classification candidates: ['HistGradientBoostingClassifier', 'RandomForestClassifier', 'LogisticRegression']
+Explainable classification candidates: ['LogisticRegression', 'DecisionTreeClassifier', 'HistGradientBoostingClassifier']
+Sparse high-dimensional candidates: ['LogisticRegression', 'LinearSVC', 'SGDClassifier']
+
+[Final Evaluation Report]
+- Selected Model Family: logistic
+- Final Sealed Test Metrics: {'AP': 0.9945, 'F1': 0.9630}
+- Why Recommendation Checklist is Just a Starting Point: It filters model families based on constraints, but final model selection depends on validation metrics on the target data.
+```
+
+설명 필요성과 희소 고차원 조건이 후보 목록을 실제로 바꿉니다. 이 목록은 탐색을 시작할 후보군이며 최종 선택은 같은 split 또는 CV와 미리 정한 업무 지표로 결정합니다. 문제 1에서 선택한 Logistic Regression family를 유지했으므로 모델 선택과 최종 test 모델도 일치합니다.
+
+### 자주 하는 실수
+
+- 입력 인자를 함수에만 선언하고 추천 결과에는 반영하지 않는 코드를 만들지 마세요.
+- 추천 함수의 모델 이름을 최종 우승 모델로 오해하지 마세요.
+- validation에서 고른 모델과 다른 family를 test에 사용하지 마세요.

@@ -249,6 +249,6 @@ def run_problem_3_1(models=None, selected_name=None):
 # Main Execution Block
 # ==========================================
 if __name__ == "__main__":
-    models, selected_name = run_problem_2_1()
-    run_problem_1_1()
-#    run_problem_3_1(models, selected_name)
+    models, selected_name = run_problem_1_1()
+    run_problem_2_1()
+    run_problem_3_1(models, selected_name)
