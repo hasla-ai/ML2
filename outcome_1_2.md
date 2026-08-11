@@ -141,7 +141,7 @@ PCA explained ratio: [0.362  0.1921]
 
 ```
 
-![plot_K_means_clustering](images\chapter_1_2_problem_2_1_plot_K_means_clustering_K_3.png)
+![plot_K_means_clustering](./images/chapter_1_2_problem_2_1_plot_K_means_clustering_K_3.png)
 
 K=3의 Silhouette가 약 0.2849로 후보 중 가장 높습니다. 그러나 PC1과 PC2가 설명하는 분산은 합계 약 0.5541이므로 2차원 그림에는 원본 정보의 일부만 남습니다. 따라서 K 선택은 전체 13차원 Silhouette와 seed 안정성, 군집별 특성 해석을 함께 확인해야 합니다.
 
