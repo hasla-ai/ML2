@@ -224,6 +224,6 @@ def run_problem_3_1():
 if __name__ == "__main__":
     # 실행하고자 하는 문제의 주석을 해제하여 단독 실행하세요.
     
-    run_problem_1_1()  # 문제 1-1 단독 실행
-#    run_problem_2_1()  # 문제 2-1 단독 실행
+#    run_problem_1_1()  # 문제 1-1 단독 실행
+     run_problem_2_1()  # 문제 2-1 단독 실행
 #    run_problem_3_1()  # 문제 3-1 단독 실행

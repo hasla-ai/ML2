@@ -71,3 +71,86 @@ train_mean_baseline 67.516166 76.161364 -0.006182
 - MAE와 RMSE의 단위는 target과 같지만 R²는 비율 지표라는 점을 구분하세요.
 - 행 개수의 합만 확인하지 말고 인덱스 교집합이 비어 있는지 확인하세요.
 
+# 필수 2. 악성 종양 분류 지표를 함께 읽기
+
+## ▶ 문제 2-1: 고정 임계값 지표와 순위 지표 비교
+
+### 업무 요청
+
+악성 종양 탐지팀은 Accuracy 하나만 보고 모델을 승인하려고 합니다. 악성을 놓치는 비용이 크므로 Recall을 포함한 임계값 지표와 ROC-AUC·AP 같은 순위 지표를 같은 validation에서 계산하세요.
+
+### 수행해야 할 작업
+
+1. `StandardScaler → LogisticRegression` Pipeline을 train에 학습하세요.
+2. `predict_proba()[:, 1]`로 악성 확률을 구하세요.
+3. 임계값 0.5에서 Accuracy·Precision·Recall·F1을 계산하세요.
+4. 확률로 ROC-AUC와 AP를 계산하세요.
+5. 모든 지표가 0과 1 사이인지 assertion으로 확인하세요.
+6. 임계값 지표와 순위 지표의 차이를 평가 보고에 작성하세요.
+
+### 시작 코드
+
+```python
+def build_classification_report(X_train, y_train, X_valid, y_valid):
+    """분류 Pipeline과 validation 확률·지표를 반환합니다."""
+    # y=1은 악성이므로 predict_proba의 양성 클래스 열을 사용해야 합니다.
+    # 전처리 통계는 train에서만 학습하고 validation은 평가에만 사용하세요.
+    # TODO 1: Logistic Regression Pipeline을 학습하세요.
+    # TODO 2: 확률과 여섯 지표를 계산하세요.
+    raise NotImplementedError("TODO: 분류 평가 보고서를 완성하세요.")
+```
+
+### 제출해야 할 결과
+
+```
+accuracy | precision | recall | f1 | roc_auc | AP
+
+[분류 평가 보고]
+- positive class:
+- 임계값 0.5의 Recall:
+- AP와 ROC-AUC에 확률을 사용한 이유:
+- Accuracy만으로 승인하면 안 되는 이유:
+```
+
+- 💡 힌트 보기
+    - 악성 확률은 `predict_proba(X_valid)[:, 1]`입니다.
+    - Accuracy·Precision·Recall·F1은 `probability >= 0.5`로 만든 예측을 사용하세요.
+    - ROC-AUC와 AP에는 0·1 예측이 아니라 연속 확률을 전달하세요.
+    
+    **대표 출력**
+    
+    ```
+    accuracy     0.9737
+    precision    1.0000
+    recall       0.9302
+    f1           0.9639
+    roc_auc      1.0000
+    AP           1.0000
+    ```
+    
+    임계값 0.5에서 Recall은 약 0.9302이므로 validation의 악성 43건 중 일부를 놓칩니다. ROC-AUC와 AP가 1.0이라는 관찰은 확률 순위가 매우 좋다는 뜻이지, 임계값 0.5에서 모든 악성을 찾았다는 뜻은 아닙니다. 따라서 운영 정책에 맞는 임계값을 별도로 선택해야 합니다.
+
+```bash
+Diabetes split: 265 88 89
+Cancer split: 341 114 114
+Cancer positive rate: 0.3726
+
+================ [문제 2-1: 악성 종양 분류 평가 보고서] ================
+ accuracy  precision   recall       f1  roc_auc  AP
+ 0.973684        1.0 0.930233 0.963855      1.0 1.0
+
+[분류 평가 보고]
+- positive class: 악성 종양 (y=1, 원본 데이터의 malignant=0을 1로 변환함)
+- 임계값 0.5의 Recall: 0.9302
+- AP와 ROC-AUC에 확률을 사용한 이유: 임계값에 의존하지 않고 모델 자체의 전체적인 클래스 구분 및 순위 매김 성능을 종합적으로 평가하기 위함입니다.
+- Accuracy만으로 승인하면 안 되는 이유: 의료 진단에서는 악성 종양(Positive)을 음성으로 잘못 분류하는 FN(False Negative)의 위험이 극도로 크기 때문에, Accuracy만으로는 Recall(재현율) 부족 문제를 감지할 수 없습니다.
+```
+
+  임계값 0.5에서 Recall은 약 0.9302이므로 validation의 악성 43건 중 일부를 놓칩니다. ROC-AUC와 AP가 1.0이라는 관찰은 확률 순위가 매우 좋다는 뜻이지, 임계값 0.5에서 모든 악성을 찾았다는 뜻은 아닙니다. 따라서 운영 정책에 맞는 임계값을 별도로 선택해야 합니다.
+
+### 자주 하는 실수
+
+- 원본 target의 `1=benign`을 그대로 positive class로 해석하지 마세요.
+- `predict()` 결과로 ROC-AUC와 AP를 계산하지 마세요.
+- AP는 양성 비율의 영향을 받으므로 positive rate와 함께 해석하세요.
+
