@@ -42,6 +42,13 @@ model | AP | F1 | Recall | priority
 - 이 결과를 다른 데이터에 그대로 일반화할 수 없는 이유:
 ```
 
+### 자주 하는 실수
+
+- 모델마다 다른 train·validation split을 사용하지 마세요.
+- KNN에서 scaling을 빼면 값의 단위가 큰 특성이 거리를 지배할 수 있습니다.
+- AP 동률인데 DataFrame의 현재 행 순서만 믿고 모델을 고르지 마세요.
+
+
 - 💡 힌트 보기
     - KNN의 거리는 특성 단위에 민감하므로 Pipeline 안에서 scaling하세요.
     - AP가 같으면 F1, Recall을 차례로 비교하세요.
@@ -68,11 +75,7 @@ logistic 1.000 0.9639  0.9302         0
 
 Logistic Regression과 KNN의 AP는 모두 1.0이지만 F1과 Recall이 더 높은 Logistic Regression이 선택됩니다. 이 관찰은 현재 분할과 설정에서의 결과이며, Logistic Regression이 모든 분류 문제에서 항상 우수하다는 뜻은 아닙니다. 같은 검증 절차에서 후보를 다시 비교해야 합니다.
 
-### 자주 하는 실수
 
-- 모델마다 다른 train·validation split을 사용하지 마세요.
-- KNN에서 scaling을 빼면 값의 단위가 큰 특성이 거리를 지배할 수 있습니다.
-- AP 동률인데 DataFrame의 현재 행 순서만 믿고 모델을 고르지 마세요.
 
 
 # 필수 2. label 없이 Wine 군집 구조 탐색하기
@@ -117,6 +120,12 @@ best_k: ...
 - PC1+PC2 설명분산비:
 - 그림만으로 품질을 확정할 수 없는 이유:
 ```
+### 자주 하는 실수
+
+- Wine 품종 label을 K-means 학습이나 K 선택에 사용하지 마세요.
+- 표준화 없이 거리 기반 군집을 만들지 마세요.
+- PCA 산점도가 보기 좋다는 이유만으로 K를 확정하지 마세요.
+
 
 - 💡 힌트 보기
     - K-means 전에 `StandardScaler().fit_transform(wine_X)`을 사용하세요.
@@ -145,11 +154,6 @@ PCA explained ratio: [0.362  0.1921]
 
 K=3의 Silhouette가 약 0.2849로 후보 중 가장 높습니다. 그러나 PC1과 PC2가 설명하는 분산은 합계 약 0.5541이므로 2차원 그림에는 원본 정보의 일부만 남습니다. 따라서 K 선택은 전체 13차원 Silhouette와 seed 안정성, 군집별 특성 해석을 함께 확인해야 합니다.
 
-### 자주 하는 실수
-
-- Wine 품종 label을 K-means 학습이나 K 선택에 사용하지 마세요.
-- 표준화 없이 거리 기반 군집을 만들지 마세요.
-- PCA 산점도가 보기 좋다는 이유만으로 K를 확정하지 마세요.
 
 # 심화 1. 데이터 조건에 따라 후보 모델 추천하기
 
@@ -199,6 +203,12 @@ def recommend_candidates(
 - 추천 목록은 시작점일 뿐인 이유:
 ```
 
+### 자주 하는 실수
+
+- 입력 인자를 함수에만 선언하고 추천 결과에는 반영하지 않는 코드를 만들지 마세요.
+- 추천 함수의 모델 이름을 최종 우승 모델로 오해하지 마세요.
+- validation에서 고른 모델과 다른 family를 test에 사용하지 마세요.
+
 - 💡 힌트 보기
     - 희소 고차원 분류에는 Logistic Regression·LinearSVC·SGDClassifier 같은 선형 후보를 고려하세요.
     - `dict.fromkeys(candidates)`는 순서를 유지하면서 중복을 제거할 수 있습니다.
@@ -226,9 +236,3 @@ Sparse high-dimensional candidates: ['LogisticRegression', 'LinearSVC', 'SGDClas
 ```
 
 설명 필요성과 희소 고차원 조건이 후보 목록을 실제로 바꿉니다. 이 목록은 탐색을 시작할 후보군이며 최종 선택은 같은 split 또는 CV와 미리 정한 업무 지표로 결정합니다. 문제 1에서 선택한 Logistic Regression family를 유지했으므로 모델 선택과 최종 test 모델도 일치합니다.
-
-### 자주 하는 실수
-
-- 입력 인자를 함수에만 선언하고 추천 결과에는 반영하지 않는 코드를 만들지 마세요.
-- 추천 함수의 모델 이름을 최종 우승 모델로 오해하지 마세요.
-- validation에서 고른 모델과 다른 family를 test에 사용하지 마세요.

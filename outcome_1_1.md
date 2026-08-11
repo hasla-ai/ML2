@@ -29,6 +29,11 @@ def build_regression_report(X_train, y_train, X_valid, y_valid):
     raise NotImplementedError("TODO: 회귀 평가 보고서를 완성하세요.")
 ```
 
+### 자주 하는 실수
+- validation target 평균으로 기준 예측을 만들지 마세요.
+- MAE와 RMSE의 단위는 target과 같지만 R²는 비율 지표라는 점을 구분하세요.
+- 행 개수의 합만 확인하지 말고 인덱스 교집합이 비어 있는지 확인하세요.
+
 ### 제출해야 할 결과
 
 ```
@@ -66,10 +71,7 @@ train_mean_baseline 67.516166 76.161364 -0.006182
 
   관찰 결과 Linear Regression의 RMSE는 약 49.15로 기준 모델의 약 76.16보다 작습니다. R²도 0.581로, train 평균만 예측하는 모델보다 validation 변동을 더 잘 설명합니다. 따라서 이 분할에서는 후보 모델이 기준 모델을 분명히 개선하지만, 이 결과만으로 다른 환자 집단까지 일반화된다고 단정하지 않습니다.
 
-### 자주 하는 실수
-- validation target 평균으로 기준 예측을 만들지 마세요.
-- MAE와 RMSE의 단위는 target과 같지만 R²는 비율 지표라는 점을 구분하세요.
-- 행 개수의 합만 확인하지 말고 인덱스 교집합이 비어 있는지 확인하세요.
+
 
 # 필수 2. 악성 종양 분류 지표를 함께 읽기
 
@@ -130,6 +132,12 @@ accuracy | precision | recall | f1 | roc_auc | AP
     
     임계값 0.5에서 Recall은 약 0.9302이므로 validation의 악성 43건 중 일부를 놓칩니다. ROC-AUC와 AP가 1.0이라는 관찰은 확률 순위가 매우 좋다는 뜻이지, 임계값 0.5에서 모든 악성을 찾았다는 뜻은 아닙니다. 따라서 운영 정책에 맞는 임계값을 별도로 선택해야 합니다.
 
+### 자주 하는 실수
+
+- 원본 target의 `1=benign`을 그대로 positive class로 해석하지 마세요.
+- `predict()` 결과로 ROC-AUC와 AP를 계산하지 마세요.
+- AP는 양성 비율의 영향을 받으므로 positive rate와 함께 해석하세요.
+
 ```bash
 Diabetes split: 265 88 89
 Cancer split: 341 114 114
@@ -148,11 +156,7 @@ Cancer positive rate: 0.3726
 
   임계값 0.5에서 Recall은 약 0.9302이므로 validation의 악성 43건 중 일부를 놓칩니다. ROC-AUC와 AP가 1.0이라는 관찰은 확률 순위가 매우 좋다는 뜻이지, 임계값 0.5에서 모든 악성을 찾았다는 뜻은 아닙니다. 따라서 운영 정책에 맞는 임계값을 별도로 선택해야 합니다.
 
-### 자주 하는 실수
 
-- 원본 target의 `1=benign`을 그대로 positive class로 해석하지 마세요.
-- `predict()` 결과로 ROC-AUC와 AP를 계산하지 마세요.
-- AP는 양성 비율의 영향을 받으므로 positive rate와 함께 해석하세요.
 
 # 심화 1. Recall 정책으로 임계값 선택하기
 
