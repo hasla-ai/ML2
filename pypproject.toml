@@ -1,0 +1,19 @@
+[project]
+name = "vector-test"
+version = "0.1.0"
+description = "Python/ML projects"
+readme = "README.md"
+requires-python = ">=3.10"
+
+# uv add 로 설치한 패키지들이 여기에 명시됩니다.
+dependencies = [
+    "matplotlib>=3.8.0",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.4.0",
+    "ucimlrepo>=0.0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

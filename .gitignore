@@ -1,0 +1,16 @@
+# Python 실행 시 자동 생성되는 캐시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+
+# uv 파이썬 가상환경 폴더 (용량이 크므로 제외)
+.venv/
+
+# VS Code 설정 폴더 중 개인 설정 파일
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# 기타 OS 생성 파일
+.DS_Store
+Thumbs.db
