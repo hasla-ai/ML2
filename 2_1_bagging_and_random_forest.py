@@ -103,6 +103,43 @@ def inspect_oob_and_importance(X_train, y_train, X_valid, y_valid):
 
   return metrics_dict, importance_df
 
+
+# ==========================================
+# [문제 3-1] Random Forest 설정별 안정성 확인하기
+# ==========================================
+
+def compare_forest_settings(X_dev, y_dev, configs, cv):
+  """Random Forest 설정별 CV AP 평균과 표준편차를 반환합니다."""
+  rows = []
+
+  for n_estimators, max_features in configs:
+    candidate = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_features=max_features,
+        class_weight="balanced",
+        n_jobs=1,
+        random_state=SEED,
+    )
+    scores = cross_val_score(
+        candidate,
+        X_dev,
+        y_dev,
+        cv=cv,
+        scoring="average_precision",
+        n_jobs=1,
+    )
+    rows.append({
+        "n_estimators": n_estimators,
+        "max_features": max_features,
+        "mean_AP": scores.mean(),
+        "std_AP": scores.std(ddof=1),
+    })
+
+  return pd.DataFrame(rows).sort_values(
+      "mean_AP", ascending=False, kind="mergesort"
+  )
+
+
 # ==========================================
 # 메인 실행 프로세스
 # ==========================================
@@ -191,4 +228,55 @@ if __name__ == "__main__":
       "(5) 중요도가 인과효과를 뜻하지 않는 이유: 특성 중요도는 모델의 예측에 쓰인"
       " 기여도(연관성)일 뿐, 해당 특성을 직접 개입/조절했을 때의 인과적 변화를 의미하지"
       " 않음."
+  )
+
+  # ----------------------------------------
+  # 3. 문제 3-1 실행 및 결과 검증
+  # ----------------------------------------
+  X_dev = pd.concat([X_train, X_valid])
+  y_dev = pd.concat([y_train, y_valid])
+
+  cv = StratifiedKFold(5, shuffle=True, random_state=SEED)
+  configs = [(100, "sqrt"), (300, "sqrt"), (300, 0.7)]
+
+  cv_table = compare_forest_settings(X_dev, y_dev, configs, cv)
+
+  # 최종 모델 학습 (문제 1의 선택 모델 보존 및 재적합)
+  final_model = clone(selected_template).fit(X_dev, y_dev)
+  test_probability = final_model.predict_proba(X_test)[:, 1]
+
+  final_test = {
+      "AP": average_precision_score(y_test, test_probability),
+      "F1": f1_score(y_test, test_probability >= 0.5),
+  }
+
+  # Assertion 점검 (문제 3-1)
+  assert len(cv_table) == len(configs)
+  assert (cv_table["std_AP"] >= 0.0).all()
+  assert selected_name == str(valid_table.iloc[0]["model"])
+  assert type(final_model) is type(selected_template)
+  assert all(0.0 <= value <= 1.0 for value in final_test.values())
+
+  
+# ==========================================
+# [심화 문제 3-1] Random Forest 설정별 안정성 확인하기
+# ==========================================
+  print("심화 문제 3-1. Random Forest 설정별 안정성 확인하기\n")
+
+  print("\n문제 3-1. RF 설정별 CV 평균 AP와 표준편차")
+  print(cv_table.round(6).to_string(index=False))
+
+  print("\n선택 모델 family의 최종 test AP·F1")
+  print(f"- 선택 모델: {selected_name}")
+  print(
+      f"- 최종 Test AP: {final_test['AP']:.4f} / Test F1: {final_test['F1']:.4f}"
+  )
+
+  print(
+      "\n[민감도 및 최종 test 보고]\n"
+      f"- 평균 AP가 가장 높은 RF 설정: n_estimators={cv_table.iloc[0]['n_estimators']}, max_features={cv_table.iloc[0]['max_features']}\n"
+      f"- 설정 간 평균 차이: 최고-최저 간 약 {cv_table['mean_AP'].max() - cv_table['mean_AP'].min():.6f}\n"
+      f"- fold 표준편차: 약 {cv_table['std_AP'].mean():.6f} 수준\n"
+      "- 차이를 과도하게 해석하면 안 되는 이유: 설정 간 평균 차이가 Fold 간 표준편차보다 매우 작으므로 성능 우열을 단정할 수 없음.\n"
+      "- test를 한 번만 사용한 이유: Test 데이터셋을 하이퍼파라미터/모델 선택에 반복 사용하면 평가 데이터에 편향(Data Leakage)이 발생하기 때문."
   )

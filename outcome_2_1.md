@@ -246,8 +246,9 @@ n_estimators | max_features | mean_AP | std_AP
     - `cross_val_score(..., scoring="average_precision")`를 사용하세요.
     - 표본 표준편차는 `scores.std(ddof=1)`로 계산합니다.
     - 최종 학습은 `clone(selected_template).fit(X_dev, y_dev)`로 모델 family를 보존하세요.
-- ✅ 정답 및 해설 보기
-    
+
+시작코드
+   
     ```python
     def compare_forest_settings(X_dev, y_dev, configs, cv):
         """Random Forest 설정별 CV AP 평균과 표준편차를 반환합니다."""
@@ -360,3 +361,28 @@ n_estimators | max_features | mean_AP | std_AP
 7. 중요도와 설정 차이를 해석할 때의 한계
 ```
 
+```bash
+심화 문제 3-1. Random Forest 설정별 안정성 확인하기
+
+
+문제 3-1. RF 설정별 CV 평균 AP와 표준편차
+ n_estimators max_features  mean_AP   std_AP
+          100         sqrt 0.987661 0.012569
+          300         sqrt 0.986935 0.013253
+          300          0.7 0.984979 0.012746
+
+선택 모델 family의 최종 test AP·F1
+- 선택 모델: forest
+- 최종 Test AP: 0.9922 / Test F1: 0.9412
+
+[민감도 및 최종 test 보고]
+- 평균 AP가 가장 높은 RF 설정: n_estimators=100, max_features=sqrt
+- 설정 간 평균 차이: 최고-최저 간 약 0.002681
+- fold 표준편차: 약 0.012856 수준
+- 차이를 과도하게 해석하면 안 되는 이유: 설정 간 평균 차이가 Fold 간 표준편차보다 매우 작으므로 성능 우열을 단정할 수 없음.
+- test를 한 번만 사용한 이유: Test 데이터셋을 하이퍼파라미터/모델 선택에 반복 사용하면 평가 데이터에 편향(Data Leakage)이 발생하기 때문.
+```
+
+평균 AP가 가장 높은 설정은 100개 나무와 `sqrt`이지만, 300개 나무와 `sqrt`의 평균 차이는 약 0.0007뿐입니다. 두 설정의 fold 표준편차는 약 0.013 수준이므로 이 표만으로 100개 나무가 본질적으로 더 낫다고 단정하기 어렵습니다. 더 반복적인 CV, 실행 시간, 메모리까지 함께 봐야 합니다.
+
+최종 test에는 문제 1에서 선택한 Forest template을 사용합니다. test AP 약 0.9922와 F1 약 0.9412는 마지막 일반화 확인값이며, 이를 본 뒤 설정이나 모델을 다시 선택하면 test가 새로운 validation처럼 사용됩니다.
