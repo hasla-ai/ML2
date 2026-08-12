@@ -102,6 +102,13 @@ OOB는 각 나무의 bootstrap 표본에 포함되지 않은 train 행을 이용
 7. 중요도 합계·행 수·지표 범위를 assertion으로 확인하세요.
 8. 상위 특성을 인과적 원인으로 해석하면 안 되는 이유를 작성하세요.
 
+### 자주 하는 실수
+
+- `oob_score_`를 AP라고 쓰지 마세요. 기본 OOB score는 accuracy입니다.
+- train 데이터 자체로 permutation importance를 계산하고 일반화 설명이라고 부르지 마세요.
+- MDI와 permutation importance의 숫자 크기를 같은 척도처럼 직접 비교하지 마세요.
+- 중요도가 높은 특성을 질병의 원인 또는 치료 대상이라고 단정하지 마세요.
+
 ### 시작 코드
 
 ```python
@@ -114,6 +121,9 @@ def inspect_oob_and_importance(X_train, y_train, X_valid, y_valid):
     # TODO 3: 지표 사전과 중요도 표를 반환하세요.
     raise NotImplementedError("TODO: OOB와 중요도 분석을 완성하세요.")
 ```
+- MDI는 `pd.Series(model.feature_importances_, index=X.columns)`로 만듭니다.
+- permutation importance의 `scoring="average_precision"`은 특성을 섞기 전후의 AP 차이를 계산합니다.
+- 중요도 계산에는 test가 아니라 validation을 사용하세요.
 
 ### 확인할 결과
 
@@ -140,8 +150,34 @@ feature | MDI | permutation_AP_drop
 ```
 
 ```bash
+문제 2-1 OOB와 두 가지 특성 중요도 해석 결과
 
+
+1. OOB accuracy와 validation AP
+- OOB_accuracy: 0.9589
+- validation_AP: 0.9944
+
+2. MDI·permutation AP 감소량 상위 특성 표 (Top 5)
+             feature    MDI  permutation_AP_drop
+worst concave points 0.1080               0.0064
+ mean concave points 0.1142               0.0034
+          worst area 0.1137               0.0029
+     worst perimeter 0.1261               0.0028
+          area error 0.0387               0.0017
+
+3. 중요도와 설정 차이를 해석할 때의 한계 및 보고 답변
+[중요도 해석 보고]
+(1) OOB 표본의 의미: Bootstrap 추출에서 제외된 Out-of-Bag 샘플을 활용한 내부 교차 검증용 표본.
+(2) OOB와 validation 지표가 다른 이유: OOB score는 Accuracy 기반 평가인 반면, validation 지표는 AP(Average Precision) 기반으로 측정 매커니즘이 달라 직접 비교할 수 없음.
+(3) MDI가 편향될 수 있는 조건: 연속형 특성이나 카테고리 수가 많은(High Cardinality) 특성에 분할 기회가 많아 중요도가 과대평가됨.
+(4) 상관 특성에서 permutation importance가 작아질 수 있는 이유: 다중공선성이 있는 특성을 섞더라도 유사한 대체 특성이 정보를 보완하므로 평가 점수 감소량이 작게 나타남.
+(5) 중요도가 인과효과를 뜻하지 않는 이유: 특성 중요도는 모델의 예측에 쓰인 기여도(연관성)일 뿐, 해당 특성을 직접 개입/조절했을 때의 인과적 변화를 의미하지 않음.
 ```
+
+OOB accuracy 약 0.9589는 bootstrap 과정에서 각 행이 제외된 나무들로 계산한 train 내부 accuracy입니다. validation AP 약 0.9944는 별도 validation에서 순위 품질을 본 값입니다. 표본과 지표가 모두 다르므로 `0.9944 - 0.9589`를 일반화 성능 향상으로 해석하면 안 됩니다.
+
+`worst concave points`의 permutation AP 감소량은 약 0.0064입니다. 이는 이 모델과 validation에서 해당 열을 섞었을 때 AP가 평균적으로 그만큼 감소했다는 뜻입니다. 종양의 의학적 원인이나 개입 효과를 뜻하지 않습니다. 서로 상관된 특성은 한 열을 섞어도 다른 열이 정보를 대신하여 permutation 중요도가 작게 나타날 수 있습니다.
+
 
 # 심화 1. Random Forest 설정별 안정성 확인하기
 

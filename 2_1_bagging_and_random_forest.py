@@ -54,6 +54,56 @@ def compare_ensemble_candidates(models, X_train, y_train, X_valid, y_valid):
   return valid_table, selected_name, selected_template
 
 # ==========================================
+# [문제 2-1] OOB와 두 가지 특성 중요도 해석하기
+# ==========================================
+
+
+def inspect_oob_and_importance(X_train, y_train, X_valid, y_valid):
+  """OOB accuracy, validation AP, 두 특성 중요도를 반환합니다."""
+  # 1. oob_score=True인 Forest를 train에 학습
+  rf_oob = RandomForestClassifier(
+      n_estimators=500,
+      criterion="gini",
+      max_features="sqrt",
+      class_weight="balanced",
+      oob_score=True,
+      random_state=SEED,
+      n_jobs=-1,
+  )
+  rf_oob.fit(X_train, y_train)
+
+  # 2. OOB Accuracy & Validation AP 계산
+  oob_accuracy = rf_oob.oob_score_
+  y_valid_proba = rf_oob.predict_proba(X_valid)[:, 1]
+  validation_ap = average_precision_score(y_valid, y_valid_proba)
+
+  # 3. MDI 계산
+  mdi_importances = rf_oob.feature_importances_
+
+  # 4. Validation Permutation Importance (AP 기준) 계산
+  perm_result = permutation_importance(
+      rf_oob,
+      X_valid,
+      y_valid,
+      scoring="average_precision",
+      n_repeats=10,
+      random_state=SEED,
+      n_jobs=-1,
+  )
+  perm_importances = perm_result.importances_mean
+
+  # 5. 중요도 표 구성
+  importance_df = pd.DataFrame({
+      "feature": X_train.columns,
+      "MDI": mdi_importances,
+      "permutation_AP_drop": perm_importances,
+  }).sort_values("permutation_AP_drop", ascending=False, kind="mergesort")
+
+  metrics_dict = {"OOB_accuracy": oob_accuracy, "validation_AP": validation_ap}
+
+  return metrics_dict, importance_df
+
+# ==========================================
 # 메인 실행 프로세스
 # ==========================================
 if __name__ == "__main__":
@@ -87,6 +137,19 @@ if __name__ == "__main__":
   ).all()
   assert selected_name == valid_table.iloc[0]["model"]
 
+  # ----------------------------------------
+  # 2. 문제 2-1 실행 및 결과 검증
+  # ----------------------------------------
+  metrics_dict, importance_df = inspect_oob_and_importance(
+      X_train, y_train, X_valid, y_valid
+  )
+
+  # Assertion 점검 (문제 2-1)
+  assert len(importance_df) == X_train.shape[1]
+  assert np.isclose(importance_df["MDI"].sum(), 1.0)
+  assert 0.0 <= metrics_dict["OOB_accuracy"] <= 1.0
+  assert 0.0 <= metrics_dict["validation_AP"] <= 1.0
+
 # ==========================================
   # [최종 제출 보고서 표준 출력]
   # ==========================================
@@ -101,4 +164,31 @@ if __name__ == "__main__":
   print(
       "- 선택 근거: 불균형 클래스 문제에서 Precision-Recall 곡선 하부 면적인"
       " AP를 1차 지표로 사용했을 때 가장 우수한 성능을 보임."
+  )
+
+  print("문제 2-1 OOB와 두 가지 특성 중요도 해석 결과\n")
+
+  print("\n1. OOB accuracy와 validation AP")
+  print(f"- OOB_accuracy: {metrics_dict['OOB_accuracy']:.4f}")
+  print(f"- validation_AP: {metrics_dict['validation_AP']:.4f}")
+
+  print("\n2. MDI·permutation AP 감소량 상위 특성 표 (Top 5)")
+  print(importance_df.head(5).round(4).to_string(index=False))
+
+  print("\n3. 중요도와 설정 차이를 해석할 때의 한계 및 보고 답변")
+  print(
+      "[중요도 해석 보고]\n"
+      "(1) OOB 표본의 의미: Bootstrap 추출에서 제외된 Out-of-Bag 샘플을 활용한"
+      " 내부 교차 검증용 표본.\n"
+      "(2) OOB와 validation 지표가 다른 이유: OOB score는 Accuracy 기반 평가인 반면,"
+      " validation 지표는 AP(Average Precision) 기반으로 측정 매커니즘이 달라 직접"
+      " 비교할 수 없음.\n"
+      "(3) MDI가 편향될 수 있는 조건: 연속형 특성이나 카테고리 수가 많은(High"
+      " Cardinality) 특성에 분할 기회가 많아 중요도가 과대평가됨.\n"
+      "(4) 상관 특성에서 permutation importance가 작아질 수 있는 이유: 다중공선성이"
+      " 있는 특성을 섞더라도 유사한 대체 특성이 정보를 보완하므로 평가 점수 감소량이"
+      " 작게 나타남.\n"
+      "(5) 중요도가 인과효과를 뜻하지 않는 이유: 특성 중요도는 모델의 예측에 쓰인"
+      " 기여도(연관성)일 뿐, 해당 특성을 직접 개입/조절했을 때의 인과적 변화를 의미하지"
+      " 않음."
   )
