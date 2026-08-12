@@ -5,9 +5,7 @@
 ## ▶ 문제 1-1: Diabetes 회귀 평가 보고서 작성
 
 ### 업무 요청
-
-질병 진행도 예측팀은 Linear Regression의 validation RMSE만 보고 모델이 충분히 좋다고 주장합니다. 하지만 RMSE의 크기만으로는 개선 여부를 판단하기 어렵습니다. train target 평균만 반복해서 예측하는 기준 모델을 만들고 같은 validation에서 비교하세요.
-
+ 
 ### 수행해야 할 작업
 
 1. `StandardScaler → LinearRegression` Pipeline을 train에 학습하세요.
