@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyClassifier
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, f1_score
 from sklearn.model_selection import learning_curve, validation_curve
 
 # dataset_3_1.py에서 고정된 데이터셋 및 파이프라인/CV 객체 로드
-from data.dataset_3_1 import SEED, X_dev, cv, tree_pipe, y_dev
+from data.dataset_3_1 import SEED, X_dev, X_test, cv, tree_pipe, y_dev, y_test
 
 #-------------------------------
 # 문제 1-1 학습곡선의 모양으로 데이터 효과 진단하기
@@ -247,6 +247,76 @@ def plot_validation_curve(depth_table, summary_info):
   plt.savefig(save_path, dpi=300)
   plt.close()
 
+#-------------------------------
+# 문제 3-1 진단 가설과 다음 실험 작성하기
+#-------------------------------
+
+def diagnose_fit(
+    train_mean,
+    valid_mean,
+    valid_std,
+    gap_tolerance=0.05,
+    low_score_reference=0.60,
+    n_folds=5,
+):
+  """곡선 요약으로 진단 가설과 다음 실험을 반환합니다."""
+
+  # 1. 일반화 Gap 및 불확실성(2 * SE) 계산
+  gap = train_mean - valid_mean
+  se = valid_std / math.sqrt(n_folds)
+  uncertainty = 2 * se
+
+  # 비교 기준: 임계값(gap_tolerance)과 불확실성 범위(2 * SE) 중 큰 값 적용
+  effective_gap_threshold = max(gap_tolerance, uncertainty)
+
+  hypothesis = ""
+  next_experiment = ""
+
+  # 2. 진단 가설 및 다음 실험 분기
+  if gap > effective_gap_threshold:
+    hypothesis = (
+        f"Train 점수({train_mean:.4f})와 Validation 점수({valid_mean:.4f}) 간의"
+        f" Gap({gap:.4f})이 유의미 수준({effective_gap_threshold:.4f})을 초과하여"
+        " 과적합(High Variance) 가능성이 높다는 가설을 제시합니다."
+    )
+    next_experiment = (
+        "모델 규제(max_depth 제한, min_samples_leaf 설정)를 강화하거나,"
+        " 특징 선택(Feature Selection)을 통해 복잡도를 낮추는 실험을 추천합니다."
+    )
+  elif (
+      valid_mean < low_score_reference and gap <= effective_gap_threshold
+  ):
+    hypothesis = (
+        f"Validation 점수({valid_mean:.4f})가 기준({low_score_reference:.4f})에 미달하고"
+        f" Gap({gap:.4f})이 적어, 모델의 표현력이 부족한 과소적합(High"
+        " Bias) 가능성이 높다는 가설을 제시합니다."
+    )
+    next_experiment = (
+        "트리의 max_depth 제약을 완화하거나, 특성 공학(Feature Engineering)을"
+        " 통해 추가적인 유용한 정보/특성을 도입하는 실험을 추천합니다."
+    )
+  else:
+    hypothesis = (
+        f"현재 CV 기준 Validation 점수({valid_mean:.4f})와"
+        f" Gap({gap:.4f})이 허용범위 내에 위치하여, 편향과 분산이 균형을"
+        " 이루는 범위에 있다는 가설을 제시합니다."
+    )
+    next_experiment = (
+        "현재 깊이 모델을 최종 후보로 고정하고, 다른 알고리즘(예: 앙상블)과의"
+        " 비교 또는 하이퍼파라미터 미세 조정을 수행하는 실험을 추천합니다."
+    )
+
+  result = {
+      "hypothesis": hypothesis,
+      "next": next_experiment,
+  }
+
+  # 요구사항 검증
+  assert "hypothesis" in result and "next" in result, (
+      "반환값에 반드시 'hypothesis'와 'next' 키가 포함되어야 합니다."
+  )
+
+  return result
 
 if __name__ == "__main__":
   print("==================================================")
@@ -335,3 +405,64 @@ if __name__ == "__main__":
       f"- 허용 후보 집합(allowed_candidates): {summary_info['allowed_candidates']}"
   )
   print(f"- 최종 선택된 깊이(chosen_depth): {summary_info['chosen_depth']}")  
+
+  print("\n==================================================")
+  print("[심화 문제 3-1] 진단 가설 도출 및 최종 Test 평가")
+  print("==================================================")
+
+  # dataset_3_1.py에서 X_test, y_test 로드 필요 (상단 import 구문에 추가)
+  from data.dataset_3_1 import X_test, y_test
+
+  # 1. 선택된 깊이(chosen_depth)의 검증 성능 정보 추출
+  chosen_depth = summary_info["chosen_depth"]
+  chosen_row = depth_table[depth_table["depth"] == chosen_depth].iloc[0]
+
+  chosen_train_mean = chosen_row["train_mean"]
+  chosen_valid_mean = chosen_row["valid_mean"]
+  chosen_valid_std = chosen_row["valid_std"]
+  chosen_gap = chosen_train_mean - chosen_valid_mean
+
+  print("\n1. 선택 깊이(Chosen Depth = {}) 행의 성능 요약:".format(chosen_depth))
+  print(f"- Train F1 평균    : {chosen_train_mean:.4f}")
+  print(f"- Validation F1 평균: {chosen_valid_mean:.4f}")
+  print(f"- Validation F1 std : {chosen_valid_std:.4f}")
+  print(f"- Generalization Gap: {chosen_gap:.4f}")
+
+  # 2. 진단 가설 및 다음 실험 도출
+  diagnosis = diagnose_fit(
+      train_mean=chosen_train_mean,
+      valid_mean=chosen_valid_mean,
+      valid_std=chosen_valid_std,
+      gap_tolerance=0.05,
+      low_score_reference=0.60,
+  )
+
+  print("\n2. 진단 결과 (Hypothesis & Next):")
+  print(f"[Hypothesis] {diagnosis['hypothesis']}")
+  print(f"[Next Exp]   {diagnosis['next']}")
+
+  print("\n3. 허용기준이 업무/비즈니스에 따라 달라져야 하는 이유:")
+  print(
+      "- 의료 진단, 금융 사기 탐지 등 치명적인 위험이 따르는 분야에서는 F1/AP의"
+      " Absolute Score 기준(low_score_reference)을 훨씬 높게 설정해야 합니다."
+  )
+  print(
+      "- 반면 실시간 추천 시스템이나 리소스 제한이 극심한 환경에서는 약간의"
+      " 성능 손실을 감수하더라도 모델의 경량화와 낮은 Gap(안정성)을 위해"
+      " gap_tolerance를 넓게 가져가는 등 비즈니스 요구사항에 맞춰 임계값을"
+      " 유연하게 조정해야 합니다."
+  )
+
+  # 3. 개발 데이터 전체(X_dev, y_dev)로 선택 깊이 모델 최종 학습 후 Test 세트 딱 한 번 평가
+  final_model = tree_pipe(depth=chosen_depth)
+  final_model.fit(X_dev, y_dev)
+
+  test_pred = final_model.predict(X_test)
+  test_proba = final_model.predict_proba(X_test)[:, 1]
+
+  test_f1 = f1_score(y_test, test_pred)
+  test_ap = average_precision_score(y_test, test_proba)
+
+  print("\n4. 최종 선택 깊이 모델의 Test 세트 최종 평가 (마지막 1회):")
+  print(f"- Test F1 Score : {test_f1:.4f}")
+  print(f"- Test AP Score : {test_ap:.4f}")
