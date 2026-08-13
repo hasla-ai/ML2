@@ -53,8 +53,6 @@ print("상관관계 보기 <아직>")
 print("상관관계")
 plt.rcParams['font.family'] = 'Malgun Gothic' # For Windows
 # plt.rcParams['font.family'] = 'AppleGothic' # For MacOS
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 plt.figure(figsize=(6,4))
 sns.heatmap(df[['age', 'bmi', 'children', 'charges']].corr(), annot=True, cmap='Blues')
@@ -102,6 +100,13 @@ reg_model.fit(X_train, y_train)
 print("3-4-2. 계수(특성 영향) 확인")
 coef = pd.Series(reg_model.coef_, index=X_train.columns)
 print(coef.sort_values(ascending=False).head(10))
+
+## 사이킷런(scikit-learn)의 로지스틱 회귀(LogisticRegression) 모델
+### log_model.coef_는 1차원 배열이 아닌 2차원 배열(행렬, 2D array) 형태로 저장됩
+# log_model.coef_[0] 으로 1차원 배열(1D)만 추출.
+# coef = pd.Series(log_model.coef_[0], index=X_train.columns)
+#print(coef.sort_values(ascending=False).head(10))
+
 #3-5. 의료비 회귀 – 성능 평가 단계
 print("3-5. 의료비 회귀 – 성능 평가 단계")
 print("3-5-1. 테스트셋 예측")
