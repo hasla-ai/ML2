@@ -52,6 +52,16 @@ def build_learning_table():
     
     `learning_curve(..., return_times=False)`가 반환하는 점수 배열의 shape는 `(학습 크기 수, fold 수)`입니다. 행 방향 평균으로 곡선을 만들고, validation 행의 `std(axis=1, ddof=1)`로 fold 표준편차를 계산하세요.
 
+train_sizes = np.linspace(0.25, 1.0, 4):개발 데이터셋(X_dev: 142개)의 25%, 50%, 75%, 100% 비율에 해당하는 크기로 훈련 표본 수($n \approx 28, 56, 85, 113$)를 단계적으로 늘리며 진단합니다.
+
+ddof=1 표본 표준편차 활용:valid_scores.std(axis=1, ddof=1)을 사용하여 CV Fold 간에 발생한 예측 성능의 실제 변동성(valid_std)을 정확히 수치화했습니다.
+
+DummyClassifier AP 확인 의의:Wine 데이터셋의 양성 클래스(Class 0) 비율에 대응하는 베이스라인 AP(약 0.3380)를 수치적으로 명시하여 데이터 불균형 문맥을 파악합니다.
+
+고분산(High Variance) 상태의 신호
+  max_depth=None인 복잡한 결정트리는 훈련 데이터($n$)가 늘어나더라도 train_F1이 1.0 완벽한 점수를 고수합니다.반면 valid_F1과의 격차(gap)가 좁혀지지 않으므로, 이 문제의 핵심 진단 결과는 "데이터를 더 모으는 것보다 모델 규제(Max Depth 제한)가 시급한 분산(Variance) 이슈"로 결론지어집니다.
+
+
 ```bash
 ==================================================
  [실습 시작] 3_1_bias_variance_tradeoff.py - 필수 문제 1-1
@@ -125,4 +135,41 @@ def choose_depth_with_one_se(depths):
 - 깊이가 늘면 train F1은 오르지만 validation F1은 어느 지점까지 오른 뒤 내려가거나 평탄해지는 **역 U자형**을 보일 수 있습니다. U자형이라고 쓰지 않습니다.
 - `valid_std`는 fold 점수의 흩어짐이고, `best_se = valid_std / sqrt(n_folds)`는 최고 평균의 표준오차입니다.
 - One-SE는 통계적 유의성 검정이 아니라 비슷한 성능 범위에서 단순한 모델을 선호하는 실용적 휴리스틱입니다.
+
+
+역 U자형 표기 준수: 문제 조건에 따라 보고서 및 해석 작성 시 "U자형"이 아닌 "트리 깊이가 커짐에 따라 Validation F1이 상승하다가 일정 시점 이후 감소/평탄화되는 역 U자형 양상"으로 명시했습니다.
+
+Standard Error (SE) 산출 기준: best_se = valid_std / sqrt(5) 식을 써서 평균의 표준오차를 구했습니다.
+
+One-SE 휴리스틱: 가장 좋은 validation mean 점수에서 $1 \times SE$ 만큼 떨어진 점수(cutoff) 이상을 확보하는 모델 중 가장 복잡도가 낮은(가장 얕은 max_depth) 모델을 구하도록 작성했습니다.
+
+```bash
+==================================================
+[필수 문제 2-1] 검증곡선과 One-SE 규칙 기반 깊이 선택
+==================================================
+
+1. 깊이별 Train / Validation F1 요약표:
+ depth  train_mean  train_std  valid_mean  valid_std
+     1      0.9098     0.0172      0.8663     0.0711
+     2      0.9812     0.0072      0.9282     0.0832
+     3      0.9973     0.0060      0.9272     0.0750
+     4      1.0000     0.0000      0.9091     0.0796
+     5      1.0000     0.0000      0.9091     0.0796
+     7      1.0000     0.0000      0.9091     0.0796
+    10      1.0000     0.0000      0.9091     0.0796
+    15      1.0000     0.0000      0.9091     0.0796
+
+2. One-SE 계산 및 깊이 선택 수치:
+- 최고 평균 성능 깊이(best_depth): 2 (valid_mean: 0.9282)
+- 최고 행의 fold 표준편차(valid_std): 0.0832
+- 최고 행의 표준오차(best_se): 0.0372
+- One-SE Cutoff (best_mean - best_se): 0.8910
+- 허용 후보 집합(allowed_candidates): [2, 3, 4, 5, 7, 10, 15]
+- 최종 선택된 깊이(chosen_depth): 2
+
+```
+
+![plot_validation_curve_wine_dataset](./images/chapter_3_1_problem_2_1_plot_validation_curve_wine_dataset.png)
+
+  Validation F1은 깊이 2에서 가장 높고 이후 조금 낮아지는 역 U자형에 가깝습니다. 최고 행의 fold 표준편차 0.0832를 그대로 빼지 않고 sqrt(5)로 나눈 표준오차 0.0372를 사용합니다. cutoff를 넘는 후보 중 가장 얕은 깊이 2가 선택되어 평균 성능과 단순성이 같은 방향을 가리킵니다.
 

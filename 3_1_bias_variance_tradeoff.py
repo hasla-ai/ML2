@@ -1,14 +1,18 @@
+import math
 import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import average_precision_score
-from sklearn.model_selection import learning_curve
+from sklearn.model_selection import learning_curve, validation_curve
 
 # dataset_3_1.py에서 고정된 데이터셋 및 파이프라인/CV 객체 로드
 from data.dataset_3_1 import SEED, X_dev, cv, tree_pipe, y_dev
 
+#-------------------------------
+# 문제 1-1 학습곡선의 모양으로 데이터 효과 진단하기
+#-------------------------------
 
 def build_learning_table():
   """학습 크기별 train·validation F1 요약표를 만듭니다."""
@@ -101,6 +105,148 @@ def plot_learning_curve(train_sizes_abs, train_scores, valid_scores):
   plt.close()
   print(f"\n[안내] 학습곡선 시각화 이미지가 성공적으로 저장되었습니다 -> {save_path}")
 
+#-------------------------------
+# 문제 2-1 검증곡선과 one-SE 규칙으로 깊이 선택하기
+#-------------------------------
+
+def choose_depth_with_one_se(depths):
+    """깊이별 검증곡선과 one-SE 선택 결과를 반환합니다."""
+    
+    # 1. Pipeline 내부의 DecisionTreeClassifier max_depth 파라미터 이름 찾기
+    # tree_pipe()가 함수인지 객체인지 판별하여 base_estimator 생성
+    base_estimator = tree_pipe() if callable(tree_pipe) else tree_pipe
+    
+    # 파이프라인 안의 Step 이름을 확인하여 max_depth 파라미터 경로 설정
+    # (예: 'model__max_depth' 또는 'tree__max_depth' 등 자동 감지)
+    param_name = "max_depth"
+    if hasattr(base_estimator, "named_steps"):
+        for step_name, step_obj in base_estimator.named_steps.items():
+            if hasattr(step_obj, "max_depth"):
+                param_name = f"{step_name}__max_depth"
+                break
+
+    # 2. validation_curve() 계산
+    train_scores, valid_scores = validation_curve(
+        estimator=base_estimator,
+        X=X_dev,
+        y=y_dev,
+        param_name=param_name,
+        param_range=depths,
+        cv=cv,
+        scoring="f1",
+        n_jobs=None,  # 난수 및 스레드 안정성을 위해 단일 실행
+    )
+
+    # 3. 깊이별 표 작성 (train_mean, train_std, valid_mean, valid_std)
+    depth_table = pd.DataFrame({
+        "depth": depths,
+        "train_mean": train_scores.mean(axis=1),
+        "train_std": train_scores.std(axis=1, ddof=1),
+        "valid_mean": valid_scores.mean(axis=1),
+        "valid_std": valid_scores.std(axis=1, ddof=1),
+    })
+
+    if depth_table is None or depth_table.empty:
+        raise NotImplementedError("깊이별 검증곡선을 계산하세요.")
+
+    # 4. 최고 validation 평균 행 탐색 및 표준오차(SE), Cutoff 계산
+    best_idx = depth_table["valid_mean"].idxmax()
+    best_row = depth_table.loc[best_idx]
+
+    n_folds = cv.get_n_splits()
+    best_se = best_row["valid_std"] / math.sqrt(n_folds)
+    cutoff = best_row["valid_mean"] - best_se
+
+    # 5. cutoff 이상인 후보 중 가장 얕은 깊이 선택 (One-SE Rule)
+    candidate_mask = depth_table["valid_mean"] >= cutoff
+    allowed_candidates = depth_table.loc[candidate_mask, "depth"].tolist()
+    chosen_depth = min(allowed_candidates)
+
+    # 선택 깊이가 cutoff를 만족하는지 assertion으로 검증
+    chosen_valid_mean = depth_table.loc[
+        depth_table["depth"] == chosen_depth, "valid_mean"
+    ].values[0]
+    assert chosen_valid_mean >= cutoff, (
+        f"선택된 깊이({chosen_depth})의 valid_mean({chosen_valid_mean:.4f})이 "
+        f"cutoff({cutoff:.4f})보다 작습니다!"
+    )
+
+    summary_info = {
+        "best_depth": int(best_row["depth"]),
+        "best_valid_mean": best_row["valid_mean"],
+        "best_valid_std": best_row["valid_std"],
+        "best_se": best_se,
+        "cutoff": cutoff,
+        "allowed_candidates": allowed_candidates,
+        "chosen_depth": int(chosen_depth),
+    }
+
+    return depth_table, summary_info
+
+def plot_validation_curve(depth_table, summary_info):
+  """검증곡선과 One-SE cutoff 및 선택된 깊이를 시각화합니다."""
+  plt.figure(figsize=(8, 5))
+
+  # Train & Validation F1 곡선
+  plt.plot(
+      depth_table["depth"],
+      depth_table["train_mean"],
+      "o-",
+      color="crimson",
+      label="Train F1",
+  )
+  plt.plot(
+      depth_table["depth"],
+      depth_table["valid_mean"],
+      "o-",
+      color="navy",
+      label="Validation F1 (5-fold CV)",
+  )
+
+  # Validation 변동 띠 (±1 std)
+  plt.fill_between(
+      depth_table["depth"],
+      depth_table["valid_mean"] - depth_table["valid_std"],
+      depth_table["valid_mean"] + depth_table["valid_std"],
+      alpha=0.15,
+      color="navy",
+  )
+
+  # One-SE Cutoff 가로 수평선
+  plt.axhline(
+      y=summary_info["cutoff"],
+      color="gray",
+      linestyle="--",
+      label=f"1-SE Cutoff ({summary_info['cutoff']:.4f})",
+  )
+
+  # 최종 선택된 깊이 세로 수직선
+  plt.axvline(
+      x=summary_info["chosen_depth"],
+      color="green",
+      linestyle=":",
+      linewidth=2,
+      label=f"Chosen Depth (One-SE: {summary_info['chosen_depth']})",
+  )
+
+  plt.title("Validation Curve & One-SE Rule Depth Selection")
+  plt.xlabel("Tree Max Depth (max_depth)")
+  plt.ylabel("F1 Score")
+  plt.xticks(depth_table["depth"])
+  plt.ylim(0.7, 1.05)
+  plt.grid(True, linestyle="--", alpha=0.6)
+  plt.legend(loc="lower right")
+  plt.tight_layout()
+
+  # images 폴더 저장
+  output_dir = "images"
+  os.makedirs(output_dir, exist_ok=True)
+  filename = "chapter_3_1_problem_2_1_plot_validation_curve_wine_dataset.png"
+  save_path = os.path.join(output_dir, filename)
+
+  plt.savefig(save_path, dpi=300)
+  plt.close()
+
 
 if __name__ == "__main__":
   print("==================================================")
@@ -157,3 +303,35 @@ if __name__ == "__main__":
       " 과적합되므로, 현재 상태에서는 순수하게 표본 수만 늘리는 것보다 트리"
       " 깊이를 제한(규제)하거나 앙상블 기법을 적용하는 것이 성능 향상에 필수적입니다."
   )
+
+  print("\n==================================================")
+  print("[필수 문제 2-1] 검증곡선과 One-SE 규칙 기반 깊이 선택")
+  print("==================================================")
+
+  # 1. 깊이 후보군 설정
+  depths = [1, 2, 3, 4, 5, 7, 10, 15]
+
+  # 2. One-SE 선택 실행
+  depth_table, summary_info = choose_depth_with_one_se(depths)
+
+  # 3. 검증곡선 시각화
+  plot_validation_curve(depth_table, summary_info)
+
+  # 4. 보고서 형식에 맞춘 출력
+  print("\n1. 깊이별 Train / Validation F1 요약표:")
+  print(depth_table.round(4).to_string(index=False))
+
+  print("\n2. One-SE 계산 및 깊이 선택 수치:")
+  print(
+      f"- 최고 평균 성능 깊이(best_depth): {summary_info['best_depth']} (valid_mean:"
+      f" {summary_info['best_valid_mean']:.4f})"
+  )
+  print(
+      f"- 최고 행의 fold 표준편차(valid_std): {summary_info['best_valid_std']:.4f}"
+  )
+  print(f"- 최고 행의 표준오차(best_se): {summary_info['best_se']:.4f}")
+  print(f"- One-SE Cutoff (best_mean - best_se): {summary_info['cutoff']:.4f}")
+  print(
+      f"- 허용 후보 집합(allowed_candidates): {summary_info['allowed_candidates']}"
+  )
+  print(f"- 최종 선택된 깊이(chosen_depth): {summary_info['chosen_depth']}")  
