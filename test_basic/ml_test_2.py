@@ -4,6 +4,27 @@
 import pandas as pd
 from sklearn.metrics import accuracy_score
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_blobs
+from sklearn.cluster import KMeans
+import seaborn as sns
+from sklearn.compose import ColumnTransformer
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from sklearn.cluster import KMeans
+from sklearn.metrics import (
+    mean_absolute_error, mean_squared_error, r2_score,
+    accuracy_score, confusion_matrix, classification_report,
+    silhouette_score, calinski_harabasz_score, davies_bouldin_score
+)
+
 print("문제1. 당뇨 발생 예측을 위한 데이터 탐색")
 df = pd.read_csv('data/diabetes.csv')
 print(df.shape) #샘플 수, 피처(특징) 수
@@ -180,4 +201,156 @@ print(X_train.shape, X_test.shape)
 # (313, 9) (79, 9)
 
 # 문제9번 할 차례.
-print("문제8(2). 범주형 인코딩 (One-hot)")
+from sklearn.linear_model import LinearRegression
+print("문제9. 선형 회귀 모델 학습")
+lin_model = LinearRegression()
+lin_model.fit(X_train, y_train)
+print("linearRegression model print")
+print(lin_model)
+# 예측 실행
+if hasattr(log_model, "coef_"):
+  print("✅ 모델이 정상적으로 학습되었습니다.")
+  print("학습된 계수(coef_):", lin_model.coef_)
+else:
+  print("❌ 모델이 아직 학습되지 않았습니다.")
+
+# 3-2-3. (간단) 성능 및 파라미터 확인
+print("기울기:", lin_model.coef_)
+print("절편:", lin_model.intercept_)
+y_pred = lin_model.predict(X_test)
+
+print("X=6 예측:", lin_model.predict(X_test))
+
+#문제 10번
+print("문제10. 회귀 모델 평가")
+print("문제10_1. 회귀 평가 지표 계산")
+mae = mean_absolute_error(y_test, y_pred)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+
+print(f"MAE : {mae:,.2f}")
+print(f"MSE : {mse:,.2f}")
+print(f"RMSE: {rmse:,.2f}")
+print(f"R^2 : {r2:.4f}")
+
+# 3-5-4. 실제값 vs 예측값 시각화
+print("문제10_2. 실제값 vs 예측값 시각화")
+plt.figure(figsize=(5,4))
+plt.scatter(y_test, y_pred, alpha=0.7)
+plt.xlabel("Actual Charges")
+plt.ylabel("Predicted Charges")
+plt.title("실제값 vs 예측값")
+plt.show()
+
+# 문제 11번: 고객 군집화를 위한 데이터 불러오기
+
+df = pd.read_csv('data/Wholesale customers data.csv', na_values='?')
+# na_values='?' 열에 ?로 표시된 값을 NaN으로 인식.
+
+# 1) 모든 컬럼을 생략 없이 출력하도록 설정
+pd.set_option('display.max_columns', None)
+# 2) (선택) 모든 행을 생략 없이 출력하고 싶을 때
+# pd.set_option('display.max_rows', None)
+# 3) (선택) 출력이 가로로 줄바꿈되어 깨지는 것 방지
+pd.set_option('display.width', 1000)
+
+print(df.head()) # 분
+print(df.info())
+
+# 컬럼 목록만 깔끔하게 보고 싶을 때
+print(df.columns.tolist())
+
+# 틀림 df = df.drop('Channel', 'Region', axis=1)
+df = df.drop(['Channel', 'Region'], axis=1)
+
+print(df.head()) # 분
+print(df.info())
+print(df.shape)
+print("특성별 기초통계")
+print(df.describe())
+
+# 문제12. 특성 스케일링
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+print("문제12. 군집화 전 스케일링 추가")
+scaler = StandardScaler()
+df_scaled = scaler.fit_transform(df)
+print("스케일 이후 특성별 기초통계")
+# scaler.fit_transform()은 Pandas DataFrame이 아닌 NumPy 배열(ndarray)을 반환
+## StandardScaler()를 실행한 직후에는 컬럼명이나 인덱스가 없는 단순 숫자 배열로 바뀜.
+
+# 1) 방법 1. NumPy 배열 상태 (df_scaled[:3])
+print(type(df_scaled))  # <class 'numpy.ndarray'>
+print(df_scaled[:3])   # 평균 0, 표준편차 1로 스케일링된 숫자 배열
+print("스케일 이후 특성별 기초통계")
+print("스케일 이후 특성별 기초통계")
+
+# 2) 방법 2. DataFrame 재조립 (pd.DataFrame(...))
+## K-Means를 돌리고 난 뒤, "각 군집별 특징(평균)"을 분석할 때 DataFrame으로 만들어두면 코드가 훨씬 간결
+# 1.스케일링 적용 (NumPy 배열 반환)
+scaled_array = scaler.fit_transform(df)
+# 2.기존 컬럼명과 인덱스를 유지하며 다시 DataFrame으로 변환!
+df_scaled = pd.DataFrame(scaled_array, columns=df.columns, index=df.index)
+# 3.스케일링 결과 확인 (평균 ≈ 0, 표준편차 ≈ 1 확인)
+print(df_scaled.head())
+print(df_scaled.describe().round(2)) # mean이 0.00, std가 1.00인지 확인!
+##
+print("평균:", np.round(df_scaled.mean(axis=0), 4))
+print("표준편차:", np.round(df_scaled.std(axis=0), 4))
+###
+
+# 문제 13: 최적 군집 수 탐색 (엘보우 방법) -> 이론 자료
+
+
+# 5-5-4. 여러 k 비교 + Elbow Method
+
+inertias = []
+k_values = range(1, 11)  # k=1~10까지 테스트
+
+for k in k_values:
+    kmeans = KMeans(
+        n_clusters=k,
+        random_state=42,
+        n_init=10  # 초기 중심점(Centroid)찍어보는 횟수
+    )
+    kmeans.fit(df_scaled)
+    inertias.append(kmeans.inertia_)  # 군집 내 제곱합(WCSS)
+    
+plt.figure(figsize=(6,4))
+plt.plot(k_values, inertias, marker='o')
+plt.xticks(k_values)
+plt.xlabel('클러스터 개수 k')
+plt.ylabel('WCSS (inertia)')
+plt.title('Elbow Method')
+plt.grid(True)
+plt.show()
+
+# 문제 14: K- 평균 군집화 적용
+
+# KMeans 실행 (k=3 가정)
+print("문제 14. KMeans 실행 (k=3 가정)")
+kmeans = KMeans(n_clusters=3, random_state=42)
+cluster_labels = kmeans.fit_predict(df_scaled)  # 학습 + 클러스터 할당
+## fit_predict = (1) 중심 학습 + (2) 각 점에 군집 번호 부여
+print(cluster_labels)
+
+print("문제 14. 군집 중심 확인")
+# unique, counts = np.unique(cluster_labels, return_counts=True)
+# print(f"클러스터별 데이터 개수: {dict(zip(unique, counts))}")
+# print("클러스터 중심(표준화 공간):\n", kmeans.cluster_centers_)
+centers_scaled = kmeans.cluster_centers_
+centers = scaler.inverse_transform(centers_scaled)
+print("군집 중심(원래 단위):\n", centers)
+
+# 문제 15: 군집 결과 해석 및 군집 특성 파악
+print("문제 15. 군집 결과 해석 및 군집 특성 파악")
+# 1. 원본 데이터프레임에 Cluster 레이블 추가
+# (kmeans 모델과 스케일링된 데이터를 이용해 예측한 레이블을 넣습니다)
+df['Cluster'] = kmeans.labels_
+# 2. 클러스터별 평균 소비 금액 계산
+cluster_summary = df.groupby('Cluster').mean()
+print(cluster_summary)
+## 클러스터 1의 고객들: Fresh, Frozen 위주 신선식품 위주 고객군.
+## 클러스터 0: 균형적 소비 고객군
+## 클러스터 2: Detergents_Paper와 Grocery, 소매점, 마트형 고객.

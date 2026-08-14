@@ -137,6 +137,7 @@ plt.scatter(y_test, y_pred, alpha=0.7)
 plt.xlabel("Actual Charges")
 plt.ylabel("Predicted Charges")
 plt.title("실제값 vs 예측값")
+# plt.axline([y_test.min(), y_test.min()], [y_test.max(), y_test.max()], color='red', linestyle='--')
 plt.show()
 
 # 4-3. 미니 예제: 단순 임계값 분류
@@ -247,10 +248,7 @@ plt.ylabel('Spending Score (1-100)')
 plt.title('소득 vs 소비 점수 산점도')
 plt.show()
 
-# 5-3-4. 스케일링 추가
-print("5-3-4. 스케일링 추가")
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+# 5-3-4. 스케일링
 
 # 5-4. 고객 군집 – 모델 학습 단계 (K-Means)
 print("5-4. 고객 군집 – 모델 학습 단계 (K-Means)")
@@ -326,6 +324,7 @@ X, y_true = make_blobs(
     cluster_std=0.60,
     random_state=42
 )
+# 5-5-4. 여러 k 비교 + Elbow Method
 
 inertias = []
 k_values = range(1, 11)  # k=1~10까지 테스트
