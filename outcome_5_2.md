@@ -102,5 +102,104 @@ pipeline steps: ['preprocessor', 'sampler', 'classifier']
     3) 요약
       - sampler는 모델이 불균형 데이터를 잘 학습하도록 돕는 '학습 전용 도구'이므로, 학습(fit) 때만 동작하고 검증·예측(predict) 시에는 Pipeline에 의해 자동으로 스킵됨.
 
+### 작업의 진행
 
+  완성된 pipeline 객체 자체를 다음 문제의 GridSearchCV에 전달해야 각 fold의 train 안에서 모든 학습형 단계가 다시 fit됨. imputer의 중앙값·최빈값, scaler의 평균·표준편차, encoder의 범주 목록, Logistic Regression의 계수를 이제 만들어야.
 
+# 기본 2. Pipeline 전체를 CV로 선택하고 저장·재로드하기
+
+## ▶ 문제 2-1: `C` 선택, sealed test, 새 요청 예측, 직렬화 검증
+
+### 업무 요청
+
+완성된 Pipeline 전체를 `GridSearchCV`에 전달하고 Logistic Regression의 `C` 세 값을 같은 4-fold와 AP로 비교하세요. 선택된 Pipeline으로 test를 한 번 평가하고, 새 요청 세 건을 예측한 뒤 `joblib` 저장·재로드 전후 결과를 비교하세요.
+
+### 수행해야 할 작업
+
+1. `StratifiedKFold(n_splits=4, shuffle=True, random_state=42)`를 만드세요.
+2. `classifier__C=[0.1, 1.0, 10.0]`을 탐색하세요.
+3. `scoring="average_precision"`, `refit=True`, `n_jobs=1`을 사용하세요.
+4. `.fit()`에는 `X_dev`, `y_dev`만 전달하세요.
+5. 후보 수 3개와 CV fits 12회를 계산하고 assert로 확인하세요.
+6. `best_estimator_`에서 label 1의 확률 열 위치를 찾으세요.
+7. 후보 선택과 refit이 끝난 뒤 sealed test AP를 한 번 계산하세요.
+8. 결측값과 학습 때 본 범주를 포함한 새 요청 세 건의 점수와 0/1 예측을 출력하세요.
+9. 선택된 Pipeline만 `review_pipeline.joblib`로 저장하고 다시 불러오세요.
+10. 점수는 `np.allclose`, 예측은 `np.array_equal`로 비교하고 assert로 확인하세요.
+
+결과
+```bash
+[검증 성공] 후보 수: 3개, 총 CV Fits: 12회 정상 확인 완료
+
+선택된 최적 파라미터 후보:[0.1, 1.0, 10.0]
+선택된 최적 파라미터: {'classifier__C': 1.0}
+선택된 최적의 C 값: 1.0
+
+Pipeline(steps=[('preprocessor',
+                 ColumnTransformer(transformers=[('num',
+                                                  Pipeline(steps=[('imputer',
+                                                                   SimpleImputer(strategy='median')),
+                                                                  ('scaler',
+                                                                   StandardScaler())]),
+                                                  ['prompt_tokens',
+                                                   'retrieval_score',
+                                                   'toxicity_score']),
+                                                 ('cat',
+                                                  Pipeline(steps=[('imputer',
+                                                                   SimpleImputer(strategy='most_frequent')),
+                                                                  ('onehot',
+                                                                   OneHotEncoder(handle_unknown='ignore',
+                                                                                 sparse_output=False))]),
+                                                  ['route'])])),
+                ('sampler', RandomOverSampler(random_state=42)),
+                ('classifier',
+                 LogisticRegression(max_iter=1000, random_state=42))])
+클래스 배열: [0 1]
+Label 1의 확률 열 위치(인덱스): 1
+📌 [Sealed Test] Average Precision (AP) Score: 0.6309
+📌 [새 요청 3건 예측 결과]
+     Probability_Score_1  Prediction_Class
+701               0.8606                 1
+977               0.4410                 0
+252               0.1561                 0
+✅ 최적 파이프라인 저장 완료: review_pipeline.joblib
+✅ 파이프라인 다시 불러오기 완료!
+
+📌 [불러온 파이프라인의 예측 결과]
+예측 클래스: [1 0 0]
+예측 확률:
+ [[0.13940051 0.86059949]
+ [0.559047   0.440953  ]
+ [0.84389748 0.15610252]]
+✅ reload 전후 점수 일치 여부: True
+✅ reload 전후 예측 완전 일치 여부: True
+(ml2) 
+```
+
+`3 candidates × 4 folds = 12 CV fits`는 후보 비교에 사용된 학습 횟수입니다. `refit=True`가 선택된 최고 Pipeline을 `X_dev` 전체에 한 번 더 학습하는 과정은 이 12회에 포함되지 않습니다. 또한 CV AP `0.440`과 sealed test AP `0.631`의 차이는 test 240행과 적은 양성 표본으로 인해 생길 수 있으며, 이 차이만으로 Pipeline이 개선되었다고 판단하지 않습니다.
+
+첫 번째와 두 번째 요청의 점수는 합성 데이터에서 학습된 모델 반응을 보여주는 예시이며 개별 특성의 인과효과를 뜻하지 않습니다. 세 번째 요청은 `prompt_tokens`가 비어 있지만, 학습 때 저장된 median imputer를 재사용하여 점수와 예측을 만듭니다. 입력 3행이 예측 3행으로 유지되는 것은 sampler가 inference에서 실행되지 않기 때문입니다.
+
+`np.allclose`와 `np.array_equal`이 통과했다는 것은 같은 실행 환경에서 전처리 상태와 모델 상태가 함께 복원됐음을 뜻합니다. 모델 성능의 적절성, 다른 라이브러리 버전과의 호환성, 파일의 안전성을 증명한 것은 아닙니다.
+
+### 자주 하는 실수
+
+- `C`만 따로 탐색하고 전처리·sampler를 CV 밖에서 먼저 실행합니다.
+- `refit=True` 이후 `best_pipeline.fit(X_dev, y_dev)`를 불필요하게 다시 호출합니다.
+- test AP를 보고 `C`나 전처리 방식을 다시 선택합니다.
+- `predict_proba(X)[:, 1]`을 class 순서 확인 없이 사용합니다.
+- 새 요청에도 `fit_transform()`이나 `fit_resample()`을 호출합니다.
+- 저장 전 모델과 reload 모델이 아니라, 같은 메모리 객체를 두 번 비교합니다.
+- 출처를 확인할 수 없는 `joblib` 또는 `pickle` 파일을 load합니다.
+
+[5장 2강 기본 실습 최종 보고]
+
+1. 데이터: 수치형 3개·범주형 1개·결측 44셀·양성 약 8%
+2. 분할: 개발 80% / sealed test 20%, stratified split
+3. Pipeline: imputation·scaling·one-hot → RandomOverSampler → Logistic Regression
+4. 탐색: C 3개 × 4-fold = 12 CV fits, AP 기준
+5. 선택 결과: best C와 best CV AP
+6. 최종 평가: 선택 완료 후 sealed test AP 1회
+7. inference: 새 요청 3건의 점수와 0/1 예측
+8. 재현성: review_pipeline.joblib 저장·reload 후 점수·예측 비교
+9. 남은 위험: 합성 데이터, 확률 미보정, threshold 미최적화, 버전 호환성, 직렬화 보안
